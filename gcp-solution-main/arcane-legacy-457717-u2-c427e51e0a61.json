@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "arcane-legacy-457717-u2",
+  "private_key_id": "c427e51e0a61131289fb742aafd71ec03544c787",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEugIBADANBgkqhkiG9w0BAQEFAASCBKQwggSgAgEAAoIBAQDgxEEO6NBH6QVg\n/GojuMEOyABbvEDK/nNE8/xozvcahHSbfR+bI6FPwrWMokrKto8/VbXDpG+h7wez\nSmkRyeiCY3hcyf45Yo7HNdCHjgDQ9cZufQn95efyp4S4rYtIibh5ub2OGapdshIO\nrcHkYpWRQPnPWyQrXbGEpeS+WwQ21zx46nxQiLxijmRB8x4fR0LGAp4AEIOxMAeJ\np8HOQ+VrmHBcavGiHBFergQCHuOsKDnJS4lmdmsl80mmuoJJIzryhNrRQJgGqFuu\nR1NlQetlPWzMeXKswPtQEiSyNVyCiP8Xan4/1sapW0NuP6sbN4I1h29mQjJ3IQPU\nBj2P+ALtAgMBAAECgf9WFgfU7gmktFsBcN8C6RnVAquG3YaNBc459Dje65k46GjA\n8bg2DMkVaddr31Z5M/LDDzc1Krj9P8+maJmIqdk9So71YWgKEo8c1wx6eEKK+TDg\noINzLnS01SeM+oSeNu4XSrL1k5IgA+1mmD/q36QcpGyjC2vCMEbaLa+unxPxUuAj\n2Y6s+62WGN25Ll8t1gP8JVlttG7y478jYmQKfKHxinbKxk8CJ0S1BojJpWMCYd8N\ns6C3ZN08RMVu/+xFX4LnTPIvvuMRSPWP26VvskM7ArEBsDjtclg39p8xgnSQG/5c\n6rlkCXm/vBFY/ZkwZE3iD4Fbt3YHMRPJQuHcC6kCgYEA/fYQfqLuKK4NPn3frAVQ\nFknvHsGbaEbVH7EXj5CcyNTQuwwQjC93dhK+3HkaJ6A1nzKYvBkZv3uEv8JjWSx/\n797grR4li43AtHWx8ke9j3gI6C3FlnKkTZaFhrZc3CIHYp24PPzQjs9jRJx/f9DD\nd15/iPAh9fK2bqgM+ZkxPkUCgYEA4pIwjLCAMmXZprEGAxxs8KPc1ugn7Gjb5Y3P\nb2aSbIjAHezoKr8cghLm0mKPDJRRbj15zWK27aUfzWDTjbVi+vuW/ps8zHh0tAXB\nnOuJlW1XL5cNmZtzCsOUmvasHoocrrGK3R0Bmzu4gawhsnVtqceWfIosMjfHYvgt\nTheZ8IkCgYAPLMDXkEzCyYOpFERlNvwOGOTc5ZyvomvhtOc/gNidd3nxc0sZ1UxC\nFeSpr+LMM1qA5LkTpDxRoMPR4X+mOG58msi6D28W46V8Ivw7CeZdyEJf/TwtPTRs\nHm5kGkl6Ld5bGimEG2cq4WGBHAjSTlsfqtncCN0+oP4dppT/5RN4MQKBgH3g0L5p\nlV/qvEjjUz7JPTFZKOnxY7Tx8TIRXq065KEOPQajR73wHeuaislaXrWTdcZ0u0ZD\n0PQpaIjXgdHac9qTiyl7oATN67DU/eOr7O2rKORU3QZ5minhzZ9m6uuwugzIsSj1\n452WSYUp2DLpEPth2xboQXPJD6rJzYn0jN9ZAoGAapkhU1OYwpBdV6YoQut6VLNP\n5KoLsAfYVWRYw9CirjwnNfw+M41jO/XPFUmDsxAVas7ielcFTMEd8Dmmb6jJ1iIP\nTF+KP1vi/YVo1R8Xd8bCvu9eLKeZqCGkpkcELtGX/IphHOgndLxdizaG7hRtocom\nxDrs5vCV4UGftcop4VU=\n-----END PRIVATE KEY-----\n",
+  "client_email": "ocr-test@arcane-legacy-457717-u2.iam.gserviceaccount.com",
+  "client_id": "104259649940236826462",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/ocr-test%40arcane-legacy-457717-u2.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
