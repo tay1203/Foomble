@@ -64,6 +64,18 @@ node_modules/
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
+
+# Service-account credentials and local test credentials
+*-firebase-adminsdk-*.json
+food-label-*.json
+
+# Python research artifacts
+__pycache__/
+*.py[cod]
+.venv/
+.ipynb_checkpoints/
 
 # dataconnect generated files
 .dataconnect

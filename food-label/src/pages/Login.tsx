@@ -1,133 +1,67 @@
-import React, { useState, useRef, useEffect } from "react";
-import {
-  useForm,
-  Controller,
-  FormProvider,
-  useFormContext,
-} from "react-hook-form";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from "@/components/ui/field";
-
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+import { useEffect, useState } from "react";
+import { Navigate, useSearchParams } from "react-router-dom";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Layout } from "@/components/ui/layout";
-import { NavLink } from "react-router-dom";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import GoogleIcon from "@/assets/google-icon-logo.svg";
+import { firebaseIsConfigured } from "@/lib/firebase";
+import { useAuth } from "@/auth/AuthContext";
 
-const loginSchema = z.object({
-  email: z.email(),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters.")
-    .max(25, "Password must be less than 25 characters"),
-});
+const Login = () => {
+  const { user, loading, signInWithGoogle, signOutUser, getIdToken } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [code, setCode] = useState("");
+  const [message, setMessage] = useState(searchParams.get("error") === "access" ? "We could not verify your testing access. Please try again." : "");
+  const [busy, setBusy] = useState(false);
+  const [approved, setApproved] = useState(false);
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+  useEffect(() => {
+    if (!user) { setApproved(false); return; }
+    let active = true;
+    (async () => {
+      try {
+        const token = await getIdToken();
+        const response = await fetch("/api/testAccessStatus", { headers: { Authorization: `Bearer ${token}` } });
+        const body = await response.json().catch(() => null);
+        if (active && response.ok) setApproved(body?.approved === true);
+      } catch { /* The passcode form remains available if the check fails. */ }
+    })();
+    return () => { active = false; };
+  }, [getIdToken, user]);
 
-const Login: React.FC = () => {
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
-
-  const onSubmit = (values: LoginFormValues) => {
-    console.log("Form submitted successfully", values);
+  const signIn = async () => {
+    setBusy(true); setMessage("");
+    try { await signInWithGoogle(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Google sign-in was not completed."); }
+    finally { setBusy(false); }
+  };
+  const redeemCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!code.trim()) return;
+    setBusy(true); setMessage("");
+    try {
+      const token = await getIdToken();
+      const response = await fetch("/api/redeemTestCode", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ code }) });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.message || "Invalid code.");
+      window.location.assign("/chat");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to validate that code."); }
+    finally { setBusy(false); }
   };
 
-  return (
-    <Layout>
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-xl">Login</CardTitle>
-        </CardHeader>
-        <CardContent className="w-full">
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <FieldGroup className="w-full">
-              <Controller
-                name="email"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor="email">Email</FieldLabel>
-                    <Input
-                      {...field}
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      required
-                    />
-                    {fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
-                  </Field>
-                )}
-              />
-
-              <Controller
-                name="password"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <div className="flex items-center">
-                      <FieldLabel htmlFor="password">Password</FieldLabel>
-                      <div className="ml-auto inline-block text-sm underline-offset-4 hover:underline">
-                        <NavLink to={`forgot-password`}>
-                          Forgot Password?
-                        </NavLink>
-                      </div>
-                    </div>
-                    <Input
-                      {...field}
-                      id="password"
-                      type="password"
-                      autoComplete="off"
-                      required
-                    />
-                    {fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
-                  </Field>
-                )}
-              />
-            </FieldGroup>
-          </form>
-        </CardContent>
-        <CardFooter className="flex-col gap-3">
-          <Button type="submit" className="w-full">
-            Login
-          </Button>
-          <Button variant="outline" className="w-full gap-2">
-            <img src={GoogleIcon} alt="Google" className="w-4 h-4"/>
-            Login with Google
-          </Button>
-          <div className="underline-offset-4 hover:underline">
-            <NavLink to={`\signup`}>Don't have an account? Sign Up</NavLink>
-          </div>
-        </CardFooter>
-      </Card>
-    </Layout>
-  );
+  if (approved) return <Navigate to="/chat" replace />;
+  return <Layout className="bg-background text-foreground">
+    <Card className="w-full max-w-sm border-border">
+      <CardHeader><CardTitle className="text-xl">Foomble testing access</CardTitle><p className="text-sm text-muted-foreground">Sign in with Google, then enter the code shared with testers.</p></CardHeader>
+      <CardContent>
+        {!firebaseIsConfigured ? <p className="text-sm text-destructive">Authentication is not configured. Add the Firebase web-app values from <code>.env.example</code> to <code>.env.local</code>.</p>
+          : !user ? <Button type="button" className="w-full gap-2" onClick={signIn} disabled={busy || loading}><img src={GoogleIcon} alt="" className="h-4 w-4" />{busy ? "Opening Google…" : "Continue with Google"}</Button>
+          : <form className="space-y-4" onSubmit={redeemCode}><p className="text-sm">Signed in as <span className="font-medium">{user.email}</span></p><Input value={code} onChange={(event) => setCode(event.target.value)} placeholder="Testing passcode" autoComplete="one-time-code" /><Button type="submit" className="w-full" disabled={busy || !code.trim()}>{busy ? "Checking…" : "Unlock chat"}</Button><Button type="button" variant="ghost" className="w-full" onClick={() => signOutUser()}>Use a different account</Button></form>}
+        {message && <p role="alert" className="mt-4 text-sm text-destructive text-center">{message}</p>}
+      </CardContent>
+      <CardFooter><p className="text-xs text-muted-foreground">Access is limited during the testing phase.</p></CardFooter>
+    </Card>
+  </Layout>;
 };
-
 export default Login;

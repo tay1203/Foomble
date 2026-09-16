@@ -12,17 +12,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 1. SETUP ---------------------------------------------------------
-PINECODE_API_KEY = os.environ.get("PINECONE_API_KEY")
+PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 GOOGLE_API_KEY = os.environ.get("GEMINI_API_KEY")
 INDEX_NAME = "food-label-app"
 
-if not PINECODE_API_KEY:
+if not PINECONE_API_KEY:
     raise ValueError("PINECONE_API_KEY not found in .env file.")
 if not GOOGLE_API_KEY:
     raise ValueError("GEMINI_API_KEY not found in .env file.")
 
 # Initialize Pinecone
-pc = Pinecone(api_key=PINECODE_API_KEY)
+pc = Pinecone(api_key=PINECONE_API_KEY)
 index = pc.Index(INDEX_NAME)
 
 # Initialize Google Embeddings
@@ -31,7 +31,7 @@ embeddings = GoogleGenerativeAIEmbeddings(
     google_api_key=GOOGLE_API_KEY
 )
 
-# 2. PROCESS PDF (THE SMART WAY) -----------------------------------
+# 2. PROCESS PDF
 print("Loading PDF...")
 loader = PyPDFLoader(r"D:\Projects\urop\public\food_regulations.pdf") 
 pages = loader.load()
@@ -48,6 +48,26 @@ print("Applying Structural Chunking...")
 # Magic Regex: Splits the text right BEFORE the word "Regulation [Number]."
 # so the word "Regulation" stays glued to the chunk!
 raw_regulation_chunks = re.split(r"(?=Regulation\s+\d+[a-zA-Z]*\.)", clean_text)
+
+# FIXED CHAR SPLITTING
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=150,
+    separators=[" ", ""]
+)
+
+baseline_chunks = splitter.split_text(full_text)
+print(f"Fixed splitting: {len(baseline_chunks)} chunks")
+
+## SENTENCE BASED
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=150,
+    separators=["\n\n", "\n", ". ", " "]
+)
+
+sentence_chunks = splitter.split_text(full_text)
+print(f"Sentence splitting: {len(sentence_chunks)} chunks")
 
 # Setup a sub-splitter just in case a single regulation is massive
 sub_splitter = RecursiveCharacterTextSplitter(
@@ -90,7 +110,15 @@ for chunk in raw_regulation_chunks:
         )
         final_chunks.append(doc)
 
-print(f"Created {len(final_chunks)} perfectly structured chunks.")
+print(f"Total chunks created: {len(final_chunks)}")
+# Calculate average chunk size
+total_tokens = 0
+for chunk in final_chunks:
+    tokens = len(chunk.page_content.split())  # rough estimate
+    total_tokens += tokens
+
+avg_chunk_size = total_tokens / len(final_chunks)
+print(f"Average chunk size: {avg_chunk_size} tokens\n")
 
 # 3. UPSERT TO PINECONE --------------------------------------------
 print("Generating embeddings and uploading to Pinecone...")

@@ -1,9 +1,7 @@
-import React from "react";
+import { Navigate } from "react-router-dom";
 
-const SignUp: React.FC = () => {
-    return (
-        <div></div>
-    );
-}
+// Google sign-in creates a Firebase account on first use, so there is no
+// separate password registration flow during the testing phase.
+const SignUp = () => <Navigate to="/" replace />;
 
 export default SignUp;

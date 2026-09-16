@@ -6,6 +6,8 @@ import Chat from "./pages/Chat.tsx";
 import Login from "./pages/Login.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import SignUp from "./pages/SignUp.tsx";
+import { AuthProvider } from "./auth/AuthContext.tsx";
+import ProtectedRoute from "./auth/ProtectedRoute.tsx";
 
 const router = createBrowserRouter([
   {
@@ -20,12 +22,12 @@ const router = createBrowserRouter([
   },
   {
     path: "/chat",
-    element: <Chat />,
+    element: <ProtectedRoute><Chat /></ProtectedRoute>,
     errorElement: <NotFound />,
     children: [
       {
         path: "/chat/:chatId",
-        element: <Chat />,
+        element: <ProtectedRoute><Chat /></ProtectedRoute>,
       },
     ],
   },
@@ -33,6 +35,6 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider><RouterProvider router={router} /></AuthProvider>
   </StrictMode>,
 );

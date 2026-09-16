@@ -1,0 +1,10 @@
+{
+  "name": "foomble",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix food-label run build",
+    "lint": "npm --prefix food-label run lint && npm --prefix functions run lint",
+    "emulators": "node scripts/start-emulators.cjs",
+    "deploy": "npm run build && npm run lint && npx --yes firebase-tools deploy"
+  }
+}
