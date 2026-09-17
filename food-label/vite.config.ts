@@ -9,7 +9,8 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:5001/food-label-a679e/asia-southeast1",
+        // Match the existing Functions region; Firestore's location is independent.
+        target: "http://127.0.0.1:5001/food-label-a679e/us-central1",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },

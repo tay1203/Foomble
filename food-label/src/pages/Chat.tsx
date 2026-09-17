@@ -107,7 +107,7 @@ interface ChatMessage {
   showSuggestions?: boolean;
 }
 
-const functionUrl = import.meta.env.VITE_CLOUD_FUNCTION_URL || "/api/foombleChat";
+const functionUrl = import.meta.env.VITE_CLOUD_FUNCTION_URL || "/api/nutritionChat";
 
 type GeminiResponse = {
   message: string;
