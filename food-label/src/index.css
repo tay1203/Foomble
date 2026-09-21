@@ -51,43 +51,43 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: #f7f7f0;
-  --foreground: #263313;
-  --card: #ffffff;
-  --card-foreground: #263313;
-  --popover: #ffffff;
-  --popover-foreground: #263313;
-  --primary: #5c8001;
+  --radius: 0.875rem;
+  --background: #f5f6ec;
+  --foreground: #1f2d18;
+  --card: #fffef9;
+  --card-foreground: #1f2d18;
+  --popover: #fffef9;
+  --popover-foreground: #1f2d18;
+  --primary: #49631a;
   --primary-foreground: #ffffff;
-  --secondary: #eef3dc;
-  --secondary-foreground: #40541a;
-  --muted: #f7f7f0;
-  --muted-foreground: #5a6843;
-  --accent: #fff8e7;
-  --accent-foreground: #40541a;
+  --secondary: #e8edcf;
+  --secondary-foreground: #344818;
+  --muted: #eef0e4;
+  --muted-foreground: #66705a;
+  --accent: #f8efcf;
+  --accent-foreground: #344818;
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: #ffffff;
-  --border: #dce7bd;
-  --input: #c7d7a3;
-  --ring: #fbb02d;
-  --highlight: #f4d35e;
-  --highlight-foreground: #263313;
-  --highlight-muted: #fff8e7;
-  --highlight-border: #f1d88d;
-  --chart-1: #5c8001;
-  --chart-2: #fbb02d;
-  --chart-3: #40541a;
-  --chart-4: #dce7bd;
-  --chart-5: #f4d35e;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #263313;
-  --sidebar-primary: #5c8001;
+  --border: #d8ddc0;
+  --input: #bbc79b;
+  --ring: #7f9b32;
+  --highlight: #ffbe32;
+  --highlight-foreground: #2b260d;
+  --highlight-muted: #fff6d9;
+  --highlight-border: #ead28a;
+  --chart-1: #49631a;
+  --chart-2: #c7d34d;
+  --chart-3: #ffbe32;
+  --chart-4: #9ab76a;
+  --chart-5: #a85d32;
+  --sidebar: #fffef9;
+  --sidebar-foreground: #1f2d18;
+  --sidebar-primary: #49631a;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef3dc;
-  --sidebar-accent-foreground: #40541a;
-  --sidebar-border: #dce7bd;
-  --sidebar-ring: #fbb02d;
+  --sidebar-accent: #e8edcf;
+  --sidebar-accent-foreground: #344818;
+  --sidebar-border: #d8ddc0;
+  --sidebar-ring: #7f9b32;
 }
 
 .dark {
@@ -130,7 +130,36 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: "Trebuchet MS", "Avenir Next", ui-rounded, system-ui, sans-serif;
+  }
+
+  ::selection {
+    background: var(--highlight);
+    color: var(--highlight-foreground);
+  }
+}
+
+@layer components {
+  .foomble-answer h2 {
+    @apply mt-5 border-b border-border pb-2 text-base font-bold first:mt-0;
+  }
+
+  .foomble-answer h3 {
+    @apply mt-4 text-sm font-bold first:mt-0;
+  }
+
+  .foomble-answer ul {
+    @apply ml-0 list-none divide-y divide-border/70 border-y border-border/70;
+  }
+
+  .foomble-answer ul > li {
+    @apply relative py-2 pl-5 leading-5;
+  }
+
+  .foomble-answer ul > li::before {
+    content: "";
+    @apply absolute left-0 top-[0.95rem] size-2 rounded-full bg-primary;
   }
 }
 

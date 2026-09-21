@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { Dialog as DialogPrimitive } from "radix-ui";
 import {
   Image,
   Send,
@@ -9,8 +10,12 @@ import {
   ChevronDown,
   LogOut,
   CircleHelp,
+  Leaf,
+  ScanLine,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
+import { cn } from "@/lib/utils";
 import {
   Message,
   MessageAvatar,
@@ -58,7 +63,7 @@ const FormattedMessage: React.FC<{ message: string }> = ({ message }) => {
       const heading = line.match(/^(#{2,3})\s+(.+)$/);
       if (heading) {
         const Heading = heading[1].length === 2 ? "h2" : "h3";
-        blocks.push(<Heading key={lineIndex} className="font-bold text-foreground mt-3 mb-1">{renderInline(heading[2])}</Heading>);
+        blocks.push(<Heading key={lineIndex}>{renderInline(heading[2])}</Heading>);
         lineIndex += 1;
         continue;
       }
@@ -75,7 +80,7 @@ const FormattedMessage: React.FC<{ message: string }> = ({ message }) => {
         }
         const List = ordered ? "ol" : "ul";
         blocks.push(
-          <List key={lineIndex} className={`${ordered ? "list-decimal" : "list-disc"} list-outside mb-2 ml-4 space-y-0.5`}>
+          <List key={lineIndex} className={ordered ? "mb-3 ml-5 list-decimal space-y-1" : "mb-3"}>
             {items.map((item, index) => <li key={index} className="text-foreground leading-5">{renderInline(item)}</li>)}
           </List>,
         );
@@ -94,7 +99,7 @@ const FormattedMessage: React.FC<{ message: string }> = ({ message }) => {
     return blocks;
   };
 
-  return <div className="text-sm">{formatText(message)}</div>;
+  return <div className="foomble-answer text-sm">{formatText(message)}</div>;
 };
 
 interface ChatMessage {
@@ -185,6 +190,7 @@ const Chat: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const followUpRoundRef = useRef(0);
+  const isWelcomeState = chatMessages.length === 1 && pendingImages.length === 0 && lastUploadedImages.length === 0;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -365,11 +371,6 @@ const Chat: React.FC = () => {
     setShowImageModal(true);
   };
 
-  const closeImageModal = () => {
-    setSelectedImage(null);
-    setShowImageModal(false);
-  };
-
   const toggleImageDropdown = () => {
     setShowImageDropdown(!showImageDropdown);
   };
@@ -504,22 +505,24 @@ const Chat: React.FC = () => {
   };
 
   return (
-    <div className="h-screen bg-background text-foreground flex flex-col">
+    <div className="flex h-dvh flex-col bg-background text-foreground">
       {/* Header */}
-      <header className="bg-primary text-primary-foreground shrink-0">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          <img src="/foomble_nobg.png" alt="Foomble" className="h-11 w-11 rounded-lg" />
+      <header className="shrink-0 border-b border-border bg-card">
+        <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3 sm:px-6">
+          <span className="grid size-11 place-items-center rounded-2xl bg-highlight">
+            <img src="/foomble_nobg.png" alt="" className="size-9 object-contain" />
+          </span>
           <div>
-            <h1 className="text-lg font-bold tracking-tight">Foomble</h1>
-            <p className="text-xs text-primary-foreground/80">Malaysian food label assistant</p>
+            <h1 className="text-lg font-bold">Foomble</h1>
+            <p className="text-xs text-muted-foreground">Label intelligence for everyday food</p>
           </div>
           <div className="ml-auto flex items-center gap-2 text-right">
-            <span className="hidden text-xs text-primary-foreground/80 sm:block">{user?.email}</span>
-            <button type="button" onClick={() => setShowUsageDialog(true)} className="rounded p-2 hover:bg-primary-foreground/10" aria-label="How to use Foomble">
-              <CircleHelp className="h-4 w-4" />
+            <span className="hidden max-w-48 truncate text-xs text-muted-foreground md:block">{user?.email}</span>
+            <button type="button" onClick={() => setShowUsageDialog(true)} className="grid size-10 place-items-center rounded-xl text-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="How to use Foomble">
+              <CircleHelp className="size-4" />
             </button>
-            <button type="button" onClick={() => signOutUser()} className="rounded p-2 hover:bg-primary-foreground/10" aria-label="Sign out">
-              <LogOut className="h-4 w-4" />
+            <button type="button" onClick={() => signOutUser()} className="grid size-10 place-items-center rounded-xl text-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Sign out">
+              <LogOut className="size-4" />
             </button>
           </div>
         </div>
@@ -547,7 +550,43 @@ const Chat: React.FC = () => {
       </AlertDialog>
 
       {/* Chat Messages */}
-      <div className="scrollbar-hidden mx-auto w-full max-w-3xl flex-1 overflow-y-auto space-y-4 px-4 py-6">
+      <main className="scrollbar-hidden mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+        {isWelcomeState && (
+          <section className="mx-auto flex min-h-full max-w-2xl flex-col justify-center py-6">
+            <div className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-lg shadow-primary/5 sm:p-9">
+              <div aria-hidden="true" className="absolute -right-10 -top-12 size-40 rounded-full border-[26px] border-secondary" />
+              <div className="relative">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="grid size-14 place-items-center rounded-2xl bg-highlight">
+                    <img src="/foomble_nobg.png" alt="" className="size-12 object-contain" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-primary">Meet Foomble</p>
+                    <p className="text-sm text-muted-foreground">Your curious label-reading companion</p>
+                  </div>
+                </div>
+                <h2 className="max-w-xl text-balance text-3xl font-bold leading-tight sm:text-4xl">Know what’s really in the pack.</h2>
+                <p className="mt-4 max-w-xl text-pretty leading-7 text-muted-foreground">Photograph an ingredient list or nutrition panel. Foomble translates the small print into clear answers about nutrients, allergens, additives, and Malaysian food rules.</p>
+
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="mt-7 flex min-h-28 w-full items-center gap-4 rounded-2xl border-2 border-dashed border-primary/35 bg-secondary/60 p-4 text-left hover:border-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground"><ScanLine className="size-6" /></span>
+                  <span>
+                    <span className="block font-bold">Upload a food label</span>
+                    <span className="mt-1 block text-sm text-muted-foreground">Start with a clear photo of the ingredients or nutrition panel</span>
+                  </span>
+                </button>
+
+                <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+                  <div className="flex items-center gap-2"><Leaf className="size-4 text-primary" /><span>Ingredients</span></div>
+                  <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" /><span>Allergens</span></div>
+                  <div className="flex items-center gap-2"><CircleHelp className="size-4 text-primary" /><span>Local regulations</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {!isWelcomeState && <div className="space-y-5">
         {chatMessages.map((msg) => (
           <Message key={msg.id} align={msg.type === "user" ? "end" : "start"}>
             {msg.type === "bot" && (
@@ -555,28 +594,35 @@ const Chat: React.FC = () => {
                 <img
                   src="/foomble_nobg.png"
                   alt="Foomble"
-                  className="h-10 w-10 object-contain p-1"
+                  className="size-10 object-contain p-1"
                 />
               </MessageAvatar>
             )}
             <MessageContent className={msg.type === "user" ? "items-end" : "items-start"}>
             <div
-              className={`max-w-[85%] ${
+              className={cn(
+                "max-w-[88%] overflow-hidden sm:max-w-[78%]",
                 msg.type === "user"
-                ? "bg-highlight text-highlight-foreground rounded-2xl rounded-br-md"
-                  : "bg-card text-card-foreground rounded-2xl rounded-bl-md border border-border"
-              } overflow-hidden`}
+                  ? "rounded-2xl rounded-br-md bg-highlight text-highlight-foreground"
+                  : "rounded-2xl rounded-bl-md border border-border bg-card text-card-foreground shadow-sm",
+              )}
             >
               {msg.images && msg.images.length > 0 && (
                 <div className="p-2 flex flex-wrap gap-2">
                   {msg.images.map((imgUrl, index) => (
-                    <img
+                    <button
                       key={index}
-                      src={imgUrl}
-                      alt={`Uploaded label ${index + 1}`}
-                      className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity border border-highlight-border"
-                      onClick={() => handleImageClick(imgUrl!)}
-                    />
+                      type="button"
+                      onClick={() => handleImageClick(imgUrl)}
+                      className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`Open uploaded label ${index + 1}`}
+                    >
+                      <img
+                        src={imgUrl}
+                        alt=""
+                        className="size-24 rounded-xl border border-highlight-border object-cover hover:opacity-90 sm:size-32"
+                      />
+                    </button>
                   ))}
                 </div>
               )}
@@ -588,7 +634,7 @@ const Chat: React.FC = () => {
                       <span className="text-sm">{msg.message}</span>
                     </div>
                   ) : (
-                    <div className="text-sm whitespace-pre-wrap">
+                    <div className="whitespace-pre-wrap text-sm">
                       <FormattedMessage message={msg.message} />
                     </div>
                   )}
@@ -602,16 +648,16 @@ const Chat: React.FC = () => {
         {/* Question Suggestions */}
         {suggestedQuestions.length > 0 && !isChatLoading && (
           <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-2xl bg-secondary p-4 border border-border">
-              <p className="text-sm font-medium text-secondary-foreground mb-3">
-                You might want to ask:
+            <div className="max-w-[88%] border-l-2 border-primary pl-4 sm:max-w-[78%]">
+              <p className="mb-3 text-sm font-bold text-secondary-foreground">
+                Keep exploring
               </p>
               <div className="space-y-2">
                 {suggestedQuestions.map((question, index) => (
                   <button
                     key={index}
                     onClick={() => handleSuggestionClick(question)}
-                    className="w-full text-left px-3 py-2.5 bg-card hover:bg-accent rounded-xl border border-border hover:border-ring transition-colors text-sm text-accent-foreground"
+                    className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-left text-sm text-accent-foreground hover:border-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     disabled={isChatLoading}
                   >
                     {question}
@@ -623,11 +669,12 @@ const Chat: React.FC = () => {
         )}
 
         <div ref={chatEndRef} />
-      </div>
+        </div>}
+      </main>
 
       {/* Input Area */}
-      <div className="bg-card border-t border-border shrink-0">
-        <div className="mx-auto max-w-3xl p-4">
+      <div className="shrink-0 border-t border-border bg-card pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto max-w-4xl p-4 sm:px-6">
 
         {lastUploadedImages.length > 0 && (
           <div className="mb-3 flex items-center justify-between bg-highlight-muted p-2 px-3 rounded-xl border border-highlight-border">
@@ -644,6 +691,7 @@ const Chat: React.FC = () => {
               disabled={isChatLoading}
               className="text-highlight-foreground hover:bg-highlight p-1 rounded-full transition-colors disabled:opacity-50"
               title="Clear attached images"
+              aria-label="Clear attached images"
             >
               <X className="w-4 h-4" />
             </button>
@@ -662,6 +710,7 @@ const Chat: React.FC = () => {
                 <button
                   onClick={() => removePendingImage(index)}
                   className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full p-1 shadow-md hover:bg-primary/90 transition-colors"
+                  aria-label={`Remove ${file.name}`}
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -693,18 +742,21 @@ const Chat: React.FC = () => {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={toggleImageDropdown}
-              className="flex items-center p-3 text-primary hover:bg-secondary rounded-xl"
+              className="flex min-h-11 items-center rounded-xl p-3 text-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               disabled={isChatLoading}
+              aria-label="Add label images"
+              aria-expanded={showImageDropdown}
+              aria-controls="image-upload-menu"
             >
               <Image className="w-5 h-5" />
               <ChevronDown className="w-3 h-3 ml-1" />
             </button>
 
             {showImageDropdown && (
-              <div className="absolute bottom-full left-0 mb-2 bg-popover border border-border rounded-xl py-2 min-w-45 z-10">
+              <div id="image-upload-menu" className="absolute bottom-full left-0 z-10 mb-2 min-w-48 rounded-xl border border-border bg-popover py-2 shadow-lg">
                 <button
                   onClick={() => cameraInputRef.current?.click()}
-                  className="w-full flex items-center px-4 py-3 hover:bg-muted text-left"
+                  className="flex min-h-11 w-full items-center px-4 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   disabled={isChatLoading}
                 >
                   <Camera className="w-4 h-4 mr-3 text-primary" />
@@ -712,7 +764,7 @@ const Chat: React.FC = () => {
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full flex items-center px-4 py-3 hover:bg-muted text-left"
+                  className="flex min-h-11 w-full items-center px-4 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   disabled={isChatLoading}
                 >
                   <Upload className="w-4 h-4 mr-3 text-primary" />
@@ -742,6 +794,7 @@ const Chat: React.FC = () => {
                 : "Upload a nutrition label to start..."
             }
             className="w-full border border-input bg-card rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            aria-label="Ask Foomble about the uploaded food label"
             rows={1}
             // Unlock if we have EITHER pending images OR previously uploaded images
             disabled={isChatLoading || (lastUploadedImages.length === 0 && pendingImages.length === 0)}
@@ -756,6 +809,7 @@ const Chat: React.FC = () => {
               (pendingImages.length === 0 && !currentMessage.trim())
             }
             className="bg-highlight text-highlight-foreground p-3 rounded-xl hover:bg-highlight/85 disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
+            aria-label="Send question"
           >
             <Send className="w-5 h-5" />
           </button>
@@ -763,24 +817,38 @@ const Chat: React.FC = () => {
         </div>
       </div>
 
-      {/* Image View Modal */}
-      {showImageModal && selectedImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="relative max-w-4xl max-h-full">
-            <button
-              onClick={closeImageModal}
-              className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 z-10"
+      <DialogPrimitive.Root
+        open={showImageModal}
+        onOpenChange={(open) => {
+          setShowImageModal(open);
+          if (!open) setSelectedImage(null);
+        }}
+      >
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/75" />
+          {selectedImage && (
+            <DialogPrimitive.Content
+              aria-label="Uploaded food label preview"
+              className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 focus:outline-none"
             >
-              <X className="w-6 h-6" />
-            </button>
-            <img
-              src={selectedImage}
-              alt="Full size nutrition label"
-              className="max-w-full max-h-[90vh] object-contain rounded-lg"
-            />
-          </div>
-        </div>
-      )}
+              <DialogPrimitive.Close asChild>
+                <button
+                  type="button"
+                  className="absolute right-3 top-3 z-10 grid size-11 place-items-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  aria-label="Close image preview"
+                >
+                  <X className="size-5" />
+                </button>
+              </DialogPrimitive.Close>
+              <img
+                src={selectedImage}
+                alt="Full-size nutrition label"
+                className="mx-auto max-h-[calc(100dvh-2rem)] max-w-full rounded-xl object-contain"
+              />
+            </DialogPrimitive.Content>
+          )}
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     </div>
   );
 };

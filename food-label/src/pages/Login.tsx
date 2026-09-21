@@ -52,15 +52,19 @@ const Login = () => {
 
   if (approved) return <Navigate to="/chat" replace />;
   return <Layout className="bg-background text-foreground">
-    <Card className="w-full max-w-sm border-border">
-      <CardHeader><CardTitle className="text-xl">Foomble testing access</CardTitle><p className="text-sm text-muted-foreground">Sign in with Google, then enter the code shared with testers.</p></CardHeader>
+    <Card className="relative z-10 w-full max-w-md gap-7 rounded-[2rem] border-border bg-card py-8 shadow-lg shadow-primary/5">
+      <CardHeader className="gap-3 px-7">
+        <div className="w-fit rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">Private research preview</div>
+        <CardTitle className="text-balance text-3xl leading-tight">Read food labels with confidence.</CardTitle>
+        <p className="text-pretty text-sm leading-6 text-muted-foreground">Foomble turns dense ingredient lists and nutrition panels into clear, useful answers grounded in Malaysian food regulations.</p>
+      </CardHeader>
       <CardContent>
         {!firebaseIsConfigured ? <p className="text-sm text-destructive">Authentication is not configured. Add the Firebase web-app values from <code>.env.example</code> to <code>.env.local</code>.</p>
           : !user ? <Button type="button" className="w-full gap-2" onClick={signIn} disabled={busy || loading}><img src={GoogleIcon} alt="" className="h-4 w-4" />{busy ? "Opening Google…" : "Continue with Google"}</Button>
-          : <form className="space-y-4" onSubmit={redeemCode}><p className="text-sm">Signed in as <span className="font-medium">{user.email}</span></p><Input value={code} onChange={(event) => setCode(event.target.value)} placeholder="Testing passcode" autoComplete="one-time-code" /><Button type="submit" className="w-full" disabled={busy || !code.trim()}>{busy ? "Checking…" : "Unlock chat"}</Button><Button type="button" variant="ghost" className="w-full" onClick={() => signOutUser()}>Use a different account</Button></form>}
+          : <form className="space-y-4" onSubmit={redeemCode}><p className="text-sm">Signed in as <span className="font-medium">{user.email}</span></p><div className="space-y-2"><label htmlFor="testing-code" className="text-sm font-medium">Testing access code</label><Input id="testing-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="Enter your code" autoComplete="one-time-code" /></div><Button type="submit" size="lg" className="w-full rounded-xl" disabled={busy || !code.trim()}>{busy ? "Checking…" : "Unlock Foomble"}</Button><Button type="button" variant="ghost" className="w-full" onClick={() => signOutUser()}>Use a different account</Button></form>}
         {message && <p role="alert" className="mt-4 text-sm text-destructive text-center">{message}</p>}
       </CardContent>
-      <CardFooter><p className="text-xs text-muted-foreground">Access is limited during the testing phase.</p></CardFooter>
+      <CardFooter className="px-7"><p className="text-xs leading-5 text-muted-foreground">Access is limited during testing. Foomble supports informed choices, not medical diagnosis.</p></CardFooter>
     </Card>
   </Layout>;
 };
