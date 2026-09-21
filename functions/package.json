@@ -2,7 +2,8 @@
   "name": "functions",
   "description": "Cloud Functions for Firebase",
   "scripts": {
-    "lint": "node --check index.js",
+    "lint": "node --check index.js && node --check label-analysis.js && node --check label-upload.js && node --check provider-error.js",
+    "test": "node --test test/label-analysis.test.js test/label-upload.test.js test/provider-error.test.js",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",

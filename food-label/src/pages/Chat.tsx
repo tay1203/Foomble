@@ -13,9 +13,14 @@ import {
   Leaf,
   ScanLine,
   ShieldCheck,
+  Copy,
+  Check,
+  RotateCcw,
+  Pencil,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { cn } from "@/lib/utils";
+import { buildHistoryPayload, prepareReplay, type ChatMessage } from "@/lib/chat-history";
 import {
   Message,
   MessageAvatar,
@@ -102,16 +107,6 @@ const FormattedMessage: React.FC<{ message: string }> = ({ message }) => {
   return <div className="foomble-answer text-sm">{formatText(message)}</div>;
 };
 
-interface ChatMessage {
-  id: string;
-  type: "user" | "bot";
-  message?: string;
-  images?: string[];
-  timestamp: Date;
-  isProcessing?: boolean;
-  showSuggestions?: boolean;
-}
-
 const functionUrl = import.meta.env.VITE_CLOUD_FUNCTION_URL || "/api/nutritionChat";
 
 type GeminiResponse = {
@@ -184,6 +179,24 @@ const Chat: React.FC = () => {
   const [showImageDropdown, setShowImageDropdown] = useState(false);
   const [showUsageDialog, setShowUsageDialog] = useState(false);
   const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [actionStatus, setActionStatus] = useState("");
+  const requestInFlight = useRef(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editInput = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const imageUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (editingId) editInput.current?.focus();
+  }, [editingId]);
+
+  useEffect(() => () => {
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    imageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -377,129 +390,112 @@ const Chat: React.FC = () => {
 
   const clearSelectedImages = () => {
     setLastUploadedImages([]);
+    setShowImageDropdown(false);
+    setActionStatus("Previous label photos cleared from follow-up context.");
+    dropdownRef.current?.querySelector("button")?.focus();
   };
 
-  // How many prior turns to send back to the backend for context. Kept
-  // small and text-only so the request stays light.
-  const MAX_HISTORY_MESSAGES = 8;
-
-  // Turns chatMessages into the { role, text } shape the backend expects,
-  // dropping images, the initial greeting, and any still-processing/error
-  // placeholders, and ensuring the sequence starts on a "user" turn (the
-  // Gemini SDK requires this).
-  const buildHistoryPayload = () => {
-    const usable = chatMessages
-      .filter((m) => m.message && !m.isProcessing)
-      .slice(-MAX_HISTORY_MESSAGES)
-      .map((m) => ({
-        role: m.type === "user" ? "user" : "model",
-        text: m.message as string,
-      }));
-
-    const firstUserIndex = usable.findIndex((m) => m.role === "user");
-    return firstUserIndex === -1 ? [] : usable.slice(firstUserIndex);
-  };
-
-  const sendTextMessage = async (questionText?: string) => {
-    const messageText = questionText || currentMessage.trim();
-
-    // Determine which images to send:
-    // If they just uploaded new ones, use those. Otherwise, use the previous context.
-    const filesToSend = pendingImages.length > 0 ? pendingImages : lastUploadedImages;
-
-    // If there is NO text and NO images, do nothing.
-    // Also, your backend requires an image, so we must ensure filesToSend has something.
-    if (!messageText && filesToSend.length === 0) return;
-    if (filesToSend.length === 0) {
-        alert("Please upload at least one image of a food label.");
-        return;
+  const copyMessage = async (message: ChatMessage) => {
+    if (!message.message) return;
+    try {
+      await navigator.clipboard.writeText(message.message);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      setCopiedId(message.id);
+      setActionStatus("Message copied.");
+      copyTimer.current = setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      setActionStatus("Could not copy. Select the message text and copy it manually.");
     }
+  };
 
-    // Create object URLs for the UI chat bubble (only if sending new images)
-    const imageUrls = pendingImages.length > 0 ? pendingImages.map(f => URL.createObjectURL(f)) : undefined;
+  const cancelEdit = () => {
+    const previousEditingId = editingId;
+    setEditingId(null);
+    requestAnimationFrame(() => document.getElementById(`edit-button-${previousEditingId}`)?.focus());
+  };
 
+  const sendTextMessage = async (questionText?: string, replayId?: string) => {
+    if (requestInFlight.current || (editingId && !replayId)) return;
+    const replay = replayId ? prepareReplay(chatMessages, replayId) : null;
+    if (replayId && !replay) {
+      setActionStatus("The original photos are unavailable. Please upload them again.");
+      return;
+    }
+    const history = replay?.history ?? chatMessages;
+    const messageText = (questionText ?? currentMessage).trim();
+    const filesToSend = replay?.question.attachments ?? (pendingImages.length > 0 ? pendingImages : lastUploadedImages);
+    if (filesToSend.length === 0) {
+      setActionStatus("Please upload at least one image of a food label.");
+      return;
+    }
+    const imageUrls = replay?.question.images ?? (!replay && pendingImages.length > 0 ? pendingImages.map((file) => {
+      const url = URL.createObjectURL(file);
+      imageUrlsRef.current.push(url);
+      return url;
+    }) : undefined);
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      type: 'user',
-      message: messageText,
-      images: imageUrls, // Show images in the bubble
-      timestamp: new Date()
+      id: replay?.question.id ?? crypto.randomUUID(),
+      type: "user", message: messageText, images: imageUrls,
+      attachments: [...filesToSend], timestamp: new Date(),
     };
-
-    setChatMessages(prev => [...prev, userMessage]);
-    setCurrentMessage('');
+    const processingMessage: ChatMessage = {
+      id: crypto.randomUUID(), type: "bot", replyTo: userMessage.id,
+      message: "Thinking...", timestamp: new Date(), isProcessing: true,
+    };
+    requestInFlight.current = true;
+    setChatMessages([...history, userMessage, processingMessage]);
+    setEditingId(null);
     setIsChatLoading(true);
     setSuggestedQuestions([]);
-
-    // Move pending images into the "active context" and clear the preview area
-    if (pendingImages.length > 0) {
-      setLastUploadedImages(pendingImages);
+    setActionStatus(replay ? "Regenerating the answer from this question." : "");
+    // A replay preserves any unsent draft and pending photos in the composer.
+    if (!replay) {
+      setCurrentMessage("");
       setPendingImages([]);
     }
-
-    const processingMessage: ChatMessage = {
-      id: (Date.now() + 1).toString(),
-      type: 'bot',
-      message: 'Thinking...',
-      timestamp: new Date(),
-      isProcessing: true,
-    };
-    setChatMessages(prev => [...prev, processingMessage]);
+    setLastUploadedImages([...filesToSend]);
 
     const formData = new FormData();
-    // Send either the typed question or a default fallback
-    formData.append('question', messageText || "Summarize this label and packaging for me.");
-    formData.append('history', JSON.stringify(buildHistoryPayload()));
-
-    filesToSend.forEach(file => {
-      formData.append('images', file);
-    });
-
+    formData.append("question", messageText || "Summarize this label and packaging for me.");
+    formData.append("history", JSON.stringify(buildHistoryPayload(history)));
+    filesToSend.forEach((file) => formData.append("images", file));
     try {
       const token = await getIdToken();
       const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
+        method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData,
       });
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        throw new Error(
-          errorData?.message || "Unable to analyse this label right now. Please try again.",
-        );
+        throw new Error(errorData?.message || "Unable to analyse this label right now. Please try again.");
       }
-
       const data: GeminiResponse = await response.json();
-
+      if (typeof data.message !== "string" || !data.message.trim()) throw new Error("No answer was returned. Please retry.");
       const botResponse: ChatMessage = {
-        id: (Date.now() + 2).toString(),
-        type: 'bot',
-        message: data.message,
-        timestamp: new Date()
+        id: crypto.randomUUID(), type: "bot", replyTo: userMessage.id,
+        message: data.message, timestamp: new Date(),
       };
-
-      setChatMessages(prev => [...prev.filter(msg => !msg.isProcessing), botResponse]);
-      const suggestions = generateSuggestedQuestions(data.message, messageText);
-      setSuggestedQuestions(suggestions);
-
+      setChatMessages((prev) => prev.map((msg) => msg.id === processingMessage.id ? botResponse : msg));
+      setSuggestedQuestions(generateSuggestedQuestions(data.message, messageText));
+      setActionStatus("Answer ready.");
     } catch (error) {
-      console.error('Error sending message:', error);
       const errorMessage: ChatMessage = {
-        id: (Date.now() + 2).toString(),
-        type: 'bot',
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to analyse this label right now. Please try again.",
-        timestamp: new Date()
+        id: crypto.randomUUID(), type: "bot", replyTo: userMessage.id, isError: true,
+        message: error instanceof Error ? error.message : "Unable to analyse this label right now. Please try again.",
+        timestamp: new Date(),
       };
-      setChatMessages(prev => [...prev.filter(msg => !msg.isProcessing), errorMessage]);
+      setChatMessages((prev) => prev.map((msg) => msg.id === processingMessage.id ? errorMessage : msg));
+      setActionStatus("The answer could not be generated. Use Retry below the message.");
     } finally {
+      requestInFlight.current = false;
       setIsChatLoading(false);
+      if (replay) requestAnimationFrame(() => composerRef.current?.focus());
     }
   };
 
+  const retryMessage = (message: ChatMessage) => {
+    const original = chatMessages.find((item) => item.id === message.replyTo);
+    if (original) void sendTextMessage(original.message ?? "", original.id);
+  };
   const handleSuggestionClick = (question: string) => {
     sendTextMessage(question);
   };
@@ -509,12 +505,11 @@ const Chat: React.FC = () => {
       {/* Header */}
       <header className="shrink-0 border-b border-border bg-card">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3 sm:px-6">
-          <span className="grid size-11 place-items-center rounded-2xl bg-highlight">
+          <span className="grid size-11 place-items-center rounded-2xl">
             <img src="/foomble_nobg.png" alt="" className="size-9 object-contain" />
           </span>
           <div>
-            <h1 className="text-lg font-bold">Foomble</h1>
-            <p className="text-xs text-muted-foreground">Label intelligence for everyday food</p>
+            <h1 className="font-brand text-2xl font-normal">Foomble</h1>
           </div>
           <div className="ml-auto flex items-center gap-2 text-right">
             <span className="hidden max-w-48 truncate text-xs text-muted-foreground md:block">{user?.email}</span>
@@ -552,17 +547,16 @@ const Chat: React.FC = () => {
       {/* Chat Messages */}
       <main className="scrollbar-hidden mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-4 py-6 sm:px-6">
         {isWelcomeState && (
-          <section className="mx-auto flex min-h-full max-w-2xl flex-col justify-center py-6">
-            <div className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-lg shadow-primary/5 sm:p-9">
-              <div aria-hidden="true" className="absolute -right-10 -top-12 size-40 rounded-full border-[26px] border-secondary" />
+          <section className="mx-auto flex h-full max-w-2xl flex-col justify-center py-6">
+            <div className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-6 sm:p-9">
+              <div aria-hidden="true" className="absolute -right-10 -top-12 size-40 rounded-full border-26 border-secondary" />
               <div className="relative">
                 <div className="mb-6 flex items-center gap-3">
-                  <div className="grid size-14 place-items-center rounded-2xl bg-highlight">
+                  <div className="grid size-14 place-items-center rounded-2xl">
                     <img src="/foomble_nobg.png" alt="" className="size-12 object-contain" />
                   </div>
                   <div>
                     <p className="font-bold text-primary">Meet Foomble</p>
-                    <p className="text-sm text-muted-foreground">Your curious label-reading companion</p>
                   </div>
                 </div>
                 <h2 className="max-w-xl text-balance text-3xl font-bold leading-tight sm:text-4xl">Know what’s really in the pack.</h2>
@@ -601,10 +595,10 @@ const Chat: React.FC = () => {
             <MessageContent className={msg.type === "user" ? "items-end" : "items-start"}>
             <div
               className={cn(
-                "max-w-[88%] overflow-hidden sm:max-w-[78%]",
+                "max-w-[88%] overflow-hidden px-2 sm:max-w-[78%]",
                 msg.type === "user"
                   ? "rounded-2xl rounded-br-md bg-highlight text-highlight-foreground"
-                  : "rounded-2xl rounded-bl-md border border-border bg-card text-card-foreground shadow-sm",
+                  : "rounded-2xl rounded-bl-md border border-border bg-card text-card-foreground",
               )}
             >
               {msg.images && msg.images.length > 0 && (
@@ -626,10 +620,33 @@ const Chat: React.FC = () => {
                   ))}
                 </div>
               )}
-              {msg.message && (
+              {editingId === msg.id ? (
+                <form className="space-y-3 p-3" onSubmit={(event) => {
+                  event.preventDefault();
+                  if (editText.trim()) void sendTextMessage(editText, msg.id);
+                }}>
+                  <label htmlFor={`edit-${msg.id}`} className="block text-sm font-medium">Edit your question</label>
+                  <textarea ref={editInput} id={`edit-${msg.id}`} value={editText}
+                    onChange={(event) => setEditText(event.target.value)} rows={4}
+                    aria-describedby={`edit-note-${msg.id}`}
+                    onKeyDown={(event) => {
+                      if (event.nativeEvent.isComposing) return;
+                      if (event.key === "Escape") { event.preventDefault(); cancelEdit(); }
+                      if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && editText.trim()) {
+                        event.preventDefault(); void sendTextMessage(editText, msg.id);
+                      }
+                    }}
+                    className="w-full min-w-48 rounded-xl border border-input bg-card p-3 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                  <p id={`edit-note-${msg.id}`} className="text-xs">Sending replaces this question and all later messages. The original label photos will be reused.</p>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={cancelEdit} className="min-h-10 rounded-lg px-3 text-sm hover:bg-highlight-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Cancel</button>
+                    <button type="submit" disabled={!editText.trim() || isChatLoading} className="min-h-10 rounded-lg bg-primary px-3 text-sm text-primary-foreground disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save & send</button>
+                  </div>
+                </form>
+              ) : msg.message && (
                 <div className="p-3">
                   {msg.isProcessing ? (
-                    <div className="flex items-center space-x-2">
+                    <div role="status" className="flex items-center space-x-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span className="text-sm">{msg.message}</span>
                     </div>
@@ -641,12 +658,36 @@ const Chat: React.FC = () => {
                 </div>
               )}
             </div>
+            {!msg.isProcessing && editingId !== msg.id && (
+              <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                {msg.message && <button type="button" onClick={() => void copyMessage(msg)}
+                  aria-label={copiedId === msg.id ? "Message copied" : "Copy message"}
+                  className="flex min-h-10 items-center gap-1.5 rounded-lg px-2 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {copiedId === msg.id ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}
+                  {copiedId === msg.id ? "Copied" : "Copy"}
+                </button>}
+                {msg.type === "user" && msg.attachments?.length ? <button type="button"
+                  id={`edit-button-${msg.id}`}
+                  disabled={isChatLoading || editingId !== null}
+                  onClick={() => { setEditText(msg.message ?? ""); setEditingId(msg.id); }}
+                  className="flex min-h-10 items-center gap-1.5 rounded-lg px-2 hover:bg-secondary hover:text-foreground disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Pencil aria-hidden="true" className="size-3.5" />Edit
+                </button> : null}
+                {msg.type === "bot" && msg.replyTo && <button type="button"
+                  disabled={isChatLoading || editingId !== null} onClick={() => retryMessage(msg)}
+                  title="Regenerate using the original question and photos. Later messages will be replaced."
+                  className="flex min-h-10 items-center gap-1.5 rounded-lg px-2 hover:bg-secondary hover:text-foreground disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <RotateCcw aria-hidden="true" className="size-3.5" />
+                  {chatMessages[chatMessages.length - 1].id === msg.id ? "Retry" : "Retry from here (replaces later messages)"}
+                </button>}
+              </div>
+            )}
             </MessageContent>
           </Message>
         ))}
 
         {/* Question Suggestions */}
-        {suggestedQuestions.length > 0 && !isChatLoading && (
+        {suggestedQuestions.length > 0 && !isChatLoading && !editingId && (
           <div className="flex justify-start">
             <div className="max-w-[88%] border-l-2 border-primary pl-4 sm:max-w-[78%]">
               <p className="mb-3 text-sm font-bold text-secondary-foreground">
@@ -675,28 +716,7 @@ const Chat: React.FC = () => {
       {/* Input Area */}
       <div className="shrink-0 border-t border-border bg-card pb-[max(0.25rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-4xl p-4 sm:px-6">
-
-        {lastUploadedImages.length > 0 && (
-          <div className="mb-3 flex items-center justify-between bg-highlight-muted p-2 px-3 rounded-xl border border-highlight-border">
-            <div className="flex items-center space-x-2">
-              <Image className="w-4 h-4 text-highlight-foreground" />
-              <span className="text-xs text-highlight-foreground font-medium">
-                {lastUploadedImages.length} image
-                {lastUploadedImages.length > 1 ? "s" : ""} attached for next
-                question
-              </span>
-            </div>
-            <button
-              onClick={clearSelectedImages}
-              disabled={isChatLoading}
-              className="text-highlight-foreground hover:bg-highlight p-1 rounded-full transition-colors disabled:opacity-50"
-              title="Clear attached images"
-              aria-label="Clear attached images"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+        <p role="status" className="mb-2 text-xs text-muted-foreground">{actionStatus}</p>
 
         {pendingImages.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3 p-3 bg-card rounded-xl border border-border">
@@ -705,11 +725,11 @@ const Chat: React.FC = () => {
                 <img
                   src={URL.createObjectURL(file)}
                   alt="pending upload"
-                  className="w-16 h-16 object-cover rounded-lg border border-border shadow-sm"
+                  className="w-16 h-16 object-cover rounded-lg border border-border"
                 />
                 <button
                   onClick={() => removePendingImage(index)}
-                  className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full p-1 shadow-md hover:bg-primary/90 transition-colors"
+                  className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full p-1 hover:bg-primary/90 transition-colors"
                   aria-label={`Remove ${file.name}`}
                 >
                   <X className="w-3 h-3" />
@@ -753,7 +773,7 @@ const Chat: React.FC = () => {
             </button>
 
             {showImageDropdown && (
-              <div id="image-upload-menu" className="absolute bottom-full left-0 z-10 mb-2 min-w-48 rounded-xl border border-border bg-popover py-2 shadow-lg">
+              <div id="image-upload-menu" className="absolute bottom-full left-0 z-10 mb-2 min-w-48 rounded-xl border border-border bg-popover py-2">
                 <button
                   onClick={() => cameraInputRef.current?.click()}
                   className="flex min-h-11 w-full items-center px-4 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -772,15 +792,23 @@ const Chat: React.FC = () => {
                     Upload from Gallery
                   </span>
                 </button>
+                {lastUploadedImages.length > 0 && (
+                  <button type="button" onClick={clearSelectedImages} disabled={isChatLoading}
+                    className="flex min-h-11 w-full items-center border-t border-border px-4 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                    <X aria-hidden="true" className="mr-3 size-4 shrink-0 text-primary" />
+                    <span className="text-sm text-foreground">Clear label photos</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
 
           <textarea
+            ref={composerRef}
             value={currentMessage}
             onChange={(e) => setCurrentMessage(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 // Only send if we have text OR if we have new pending images
                 if (currentMessage.trim() || pendingImages.length > 0) {
@@ -797,7 +825,7 @@ const Chat: React.FC = () => {
             aria-label="Ask Foomble about the uploaded food label"
             rows={1}
             // Unlock if we have EITHER pending images OR previously uploaded images
-            disabled={isChatLoading || (lastUploadedImages.length === 0 && pendingImages.length === 0)}
+            disabled={isChatLoading || editingId !== null || (lastUploadedImages.length === 0 && pendingImages.length === 0)}
           />
           <button
             onClick={() => sendTextMessage()}
@@ -805,7 +833,7 @@ const Chat: React.FC = () => {
             // 1. If it's loading
             // 2. If there are NO new images AND NO text (prevents sending an empty request)
             disabled={
-              isChatLoading ||
+              isChatLoading || editingId !== null ||
               (pendingImages.length === 0 && !currentMessage.trim())
             }
             className="bg-highlight text-highlight-foreground p-3 rounded-xl hover:bg-highlight/85 disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"

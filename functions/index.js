@@ -8,6 +8,9 @@ const { Pinecone } = require("@pinecone-database/pinecone");
 const busboy = require("busboy");
 const { performance } = require('perf_hooks');
 const { timingSafeEqual } = require("crypto");
+const { labelSchema, extractLabel } = require("./label-analysis");
+const { readLabelImages } = require("./label-upload");
+const { providerErrorResponse } = require("./provider-error");
 
 // Restrict CORS to your deployed frontend. Set ALLOWED_ORIGIN in your
 // Firebase Functions env config
@@ -198,6 +201,50 @@ exports.testAccessStatus = onRequest(
 // 2. Export the Cloud Function
 // v2 onRequest: timeoutSeconds/memory replace v1's runWith(), and cors is
 // handled natively (no separate cors package/middleware needed).
+exports.analyzeLabel = onRequest(
+  {
+    timeoutSeconds: 120,
+    memory: "512MiB",
+    cors: CORS_OPTION,
+    invoker: "public",
+    secrets: [GEMINI_API_KEY_SECRET],
+  },
+  async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed." });
+    try {
+      const user = await getAuthenticatedUser(req);
+      const tester = await db.collection("test_users").doc(user.uid).get();
+      if (!tester.exists || tester.data()?.approved !== true) return res.status(403).json({ message: "Testing access is required." });
+      const images = await readLabelImages(req);
+      const rateLimit = await checkRateLimit(user.uid);
+      if (!rateLimit.allowed) return res.status(429).json({ message: rateLimit.message });
+      const key = GEMINI_API_KEY_SECRET.value() || process.env.GEMINI_API_KEY;
+      if (!key) return res.status(503).json({ message: "Label analysis is not configured." });
+      const model = new GoogleGenerativeAI(key).getGenerativeModel({
+        model: "gemini-3.6-flash",
+        generationConfig: {
+          responseMimeType: "application/json", responseSchema: labelSchema,
+          maxOutputTokens: 8192,
+          thinkingConfig: { thinkingLevel: "low" },
+        },
+      });
+      try {
+        const product = await extractLabel(model, images);
+        return res.status(200).json({ product });
+      } catch (error) {
+        // Do not log raw label text, images, or provider payloads.
+        logger.warn("Structured label extraction failed or could not be validated");
+        const providerFailure = providerErrorResponse(error);
+        if (providerFailure) return res.status(providerFailure.status).json(providerFailure.body);
+        return res.status(422).json({ message: "Unable to reliably extract this label. Upload clear photos of one product and try again." });
+      }
+    } catch (error) {
+      return res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to analyse this label right now." });
+    }
+  },
+);
+
 exports.nutritionChat = onRequest(
   {
     timeoutSeconds: 120,
@@ -482,8 +529,10 @@ exports.nutritionChat = onRequest(
 
       } catch (error) {
         logger.error("Error processing RAG pipeline:", error);
+        const providerFailure = providerErrorResponse(error);
+        if (providerFailure) return res.status(providerFailure.status).json(providerFailure.body);
         res.status(500).json({
-          message: "Unable to analyse this label right now. Please try again with a clear image.",
+          message: "Unable to analyse this label right now. Please try again.",
         });
       }
     });
